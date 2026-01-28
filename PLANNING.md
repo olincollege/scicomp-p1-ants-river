@@ -25,7 +25,6 @@ struct LatticeNode {
 
 struct Lattice {
     Vector<LatticeNode> nodes;
-    LatticeNode getNodeAtPos(LatticePos pos); // get a node by global position
 }
 
 enum AntStatus {LOST; FOLLOWING}
@@ -81,6 +80,7 @@ impl Ant {
 }
 
 impl Lattice {
+    LatticeNode getNodeAtPos(LatticePos pos); // get a node by global position
     Map<LatticeDir, LatticeNode> get_neighbors(LatticeNode node); // helper to get the neighbors and directions of a node
     void evaporate_all_pheromone(WorldParams params); // evaporate pheromone at all nodes
 }
