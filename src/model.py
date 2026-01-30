@@ -341,12 +341,13 @@ class Ant:
         if self.velocity in nearby_trails:
             # go forward if possible
             return self.velocity
-        # FIXME: this doesn't handle antennae saturation properly
+        
         first_val = next(iter(nearby_trails.values())).pheromone_level
         all_same = all(node.pheromone_level == first_val for node in nearby_trails.values())
-        if all_same:
+        all_saturated = all(node.pheromone_level >= params.C_s for node in nearby_trails.values())
+        if all_same or all_saturated:
             # all options have the same pheromone level, act like we're lost
-            return self.pick_lost(params, nearby_trails)
+            return self.pick_lost(params, neighbors)
         else:
             # pick the direction with the highest pheromone level
             best_dir = max(nearby_trails.items(), key=lambda item: item[1].pheromone_level)[0]

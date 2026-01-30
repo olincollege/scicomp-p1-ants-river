@@ -111,9 +111,95 @@ class TestAnt:
         prob = ant.get_fidelity_probability(params)
         assert prob == params.phi_low + params.delta_phi
     
+    def test_following_one_option(self):
+        params = WorldParams.default()
+        lattice = LatticeBuilders.square_lattice(params.world_size)
+        node = lattice.get_node_at((1, 1))
+        assert node is not None
+        ant = Ant(node)
+        ant.velocity = LatticeDir.NORTH
+        neighbors = lattice.get_neighbors(node)
+        # Set pheromone levels so that only one neighbor has pheromone
+        neighbors[LatticeDir.EAST].add_pheromone(10)
+        chosen_dir = ant.pick_following(params, neighbors)
+        assert chosen_dir == LatticeDir.EAST
+    
+    def test_following_options_saturated(self):
+        params = WorldParams.default()
+        lattice = LatticeBuilders.square_lattice(params.world_size)
+        node = lattice.get_node_at((1, 1))
+        assert node is not None
+        ant = Ant(node)
+        ant.velocity = LatticeDir.NORTH
+        neighbors = lattice.get_neighbors(node)
+        # Set pheromone levels to saturation
+        neighbors[LatticeDir.NORTHWEST].add_pheromone(params.C_s + 10)
+        neighbors[LatticeDir.EAST].add_pheromone(params.C_s + 20)
+        # Since both are saturated, should act like lost
+        num_trials = 100
+        # should see all directions get picked
+        direction_counts = {dir: 0 for dir in LatticeDir}
+        for _ in range(num_trials):
+            dir = ant.pick_following(params, neighbors)
+            direction_counts[dir] += 1
+        
+        assert all(count > 0 for count in direction_counts.values())
+    
+    def test_following_options_same_level(self):
+        params = WorldParams.default()
+        lattice = LatticeBuilders.square_lattice(params.world_size)
+        node = lattice.get_node_at((1, 1))
+        assert node is not None
+        ant = Ant(node)
+        ant.velocity = LatticeDir.NORTH
+        neighbors = lattice.get_neighbors(node)
+        # Set pheromone levels on multiple neighbors to the same level
+        neighbors[LatticeDir.EAST].add_pheromone(10)
+        neighbors[LatticeDir.SOUTH].add_pheromone(10)
+        neighbors[LatticeDir.WEST].add_pheromone(10)
+        num_trials = 100
+        # should see all directions get picked
+        direction_counts = {dir: 0 for dir in LatticeDir}
+        for _ in range(num_trials):
+            dir = ant.pick_following(params, neighbors)
+            direction_counts[dir] += 1
+        
+        assert all(count > 0 for count in direction_counts.values())
+    
+    def test_following_forward_fork(self):
+        params = WorldParams.default()
+        lattice = LatticeBuilders.square_lattice(params.world_size)
+        node = lattice.get_node_at((1, 1))
+        assert node is not None
+        ant = Ant(node)
+        ant.velocity = LatticeDir.NORTH
+        neighbors = lattice.get_neighbors(node)
+        # Set pheromone levels on multiple neighbors including forward
+        neighbors[LatticeDir.NORTH].add_pheromone(2)
+        neighbors[LatticeDir.EAST].add_pheromone(5)
+        neighbors[LatticeDir.SOUTH].add_pheromone(15)
+        neighbors[LatticeDir.WEST].add_pheromone(10)
+        chosen_dir = ant.pick_following(params, neighbors)
+        assert chosen_dir == LatticeDir.NORTH  # should prefer going forward
+    
+    def test_following_options_fork(self):
+        params = WorldParams.default()
+        lattice = LatticeBuilders.square_lattice(params.world_size)
+        node = lattice.get_node_at((1, 1))
+        assert node is not None
+        ant = Ant(node)
+        ant.velocity = LatticeDir.NORTH
+        neighbors = lattice.get_neighbors(node)
+        # Set pheromone levels on multiple neighbors
+        neighbors[LatticeDir.EAST].add_pheromone(5)
+        neighbors[LatticeDir.SOUTH].add_pheromone(15)
+        neighbors[LatticeDir.WEST].add_pheromone(10)
+        chosen_dir = ant.pick_following(params, neighbors)
+        assert chosen_dir == LatticeDir.WEST  # we can't turn around, so SOUTH is not an option
+    
     def test_lost_algorithm(self):
         params = WorldParams.default()
-        lattice = LatticeBuilders.square_lattice(4)
+        lattice = LatticeBuilders.square_lattice(params.world_size)
         node = lattice.get_node_at((1, 1))
         assert node is not None
         ant = Ant(node)
@@ -130,6 +216,26 @@ class TestAnt:
             expected_prob = weight / total_weight
             actual_prob = direction_counts[LatticeDir((dir % 360))] / num_trials
             assert abs(expected_prob - actual_prob) < 0.05  # Allow 5% error margin
+    
+    def test_move_loses_fidelity_sometimes(self):
+        params = WorldParams.default()
+        trials = 100
+        fidelity_losses = 0
+        for _ in range(trials):
+            lattice = LatticeBuilders.square_lattice(params.world_size)
+            node = lattice.get_node_at((1, 1))
+            assert node is not None
+            ant = Ant(node)
+            ant.status = AntStatus.FOLLOWING
+            ant.velocity = LatticeDir.NORTH
+            # Add some pheromone to our node to increase fidelity chance
+            node.add_pheromone(7)
+            # Give a direction with pheromone to follow
+            lattice.get_neighbors(node)[LatticeDir.NORTH].add_pheromone(10)
+            ant.move(params, lattice)
+            if ant.status == AntStatus.LOST:
+                fidelity_losses += 1 
+                
 class TestAntWorld:
     def test_initialization(self):
         params = WorldParams.default()
