@@ -5,6 +5,7 @@ It doesn't include any interface or input/output code.
 """
 from typing import Callable
 from enum import Enum
+import random
 
 class LatticeBuilders:
     """
@@ -20,8 +21,25 @@ class LatticeBuilders:
         :return: The generated square lattice
         :rtype: Lattice
         """
-        # TODO
-        pass
+        nodes = {(x, y): LatticeNode((x, y)) for x in range(world_size) for y in range(world_size)}
+        for (x, y), node in nodes.items():
+            directions = {
+                LatticeDir.NORTH: (x, y - 1),
+                LatticeDir.NORTHEAST: (x + 1, y - 1),
+                LatticeDir.EAST: (x + 1, y),
+                LatticeDir.SOUTHEAST: (x + 1, y + 1),
+                LatticeDir.SOUTH: (x, y + 1),
+                LatticeDir.SOUTHWEST: (x - 1, y + 1),
+                LatticeDir.WEST: (x - 1, y),
+                LatticeDir.NORTHWEST: (x - 1, y - 1),
+            }
+            for direction, (nx, ny) in directions.items():
+                if 0 <= nx < world_size and 0 <= ny < world_size:
+                    neighbor = nodes[(nx, ny)]
+                    node.set_neighbor(direction, neighbor)
+        lattice = Lattice(list(nodes.values()))
+        return lattice                    
+
 
 class WorldParams:
     tau: int # Units: pu/ant/ts. rate of pheromone deposition per ant per time step
@@ -71,9 +89,16 @@ class WorldParams:
         self.evaporation_rate = evaporation_rate
         self.world_size = world_size
         self.generate_lattice = generate_lattice
+        assert abs(sum(B.values()) - 1.0) < 1e-6, "Turning kernel probabilities must sum to 1."
+        assert len(B) == 8, "Turning kernel must have 8 entries for 8 directions."
+        assert 0.0 <= phi_low <= 1.0, "phi_low must be between 0 and 1."
+        assert 0.0 <= delta_phi <= 1.0, "delta_phi must be between 0 and 1."
+    
+    @classmethod
+    def default(cls) -> 'WorldParams':
+        return cls(evaporation_rate=1, tau=1, B={0: 0.44, 45: 0.1, -45: 0.1, 90: 0.08, -90: 0.08, 135: 0.05, -135: 0.05, 180: 0.1}, phi_low=0.1, C_s=16, delta_phi=0.8, world_size=4)
 
 type LatticePos = tuple[int, int]
-
 class LatticeDir(Enum):
     """
     Possible directions for neighboring nodes in the lattice.
@@ -87,6 +112,22 @@ class LatticeDir(Enum):
     SOUTHWEST = 225
     WEST = 270
     NORTHWEST = 315
+
+    @staticmethod
+    def opposite(direction: 'LatticeDir') -> 'LatticeDir':
+        """
+        Get the opposite direction of the given direction.
+        
+        :param direction: The original direction
+        :type direction: LatticeDir
+        :return: The opposite direction
+        :rtype: LatticeDir
+        """
+        opposite_angle = (direction.value + 180) % 360
+        for dir in LatticeDir:
+            if dir.value == opposite_angle:
+                return dir
+        raise ValueError("Invalid direction provided.")
 
 class LatticeNode:
     """
@@ -184,6 +225,17 @@ class Lattice:
         """
         return {direction: neighbor for direction, neighbor in node.neighbors.items() if neighbor is not None}
     
+    def evaporate_all_pheromones(self, params: WorldParams):
+        """
+        Evaporate pheromones on all nodes in the lattice according to the world parameters.
+
+        :param self: The Lattice instance
+        :param params: The world parameters
+        :type params: WorldParams
+        """
+        for node in self.nodes:
+            node.remove_pheromone(params.evaporation_rate)
+    
 class AntStatus(Enum):
     LOST = 0
     FOLLOWING = 1
@@ -194,6 +246,7 @@ class Ant:
     """
     current_node: LatticeNode
     status: AntStatus
+    velocity: LatticeDir
 
     def __init__(self, start_node: LatticeNode):
         """
@@ -205,6 +258,25 @@ class Ant:
         """
         self.current_node = start_node
         self.status = AntStatus.LOST
+        self.velocity = random.choice(list(LatticeDir))
+    
+    def get_fidelity_probability(self, params: WorldParams) -> float:
+        """
+        Calculate the probability of the ant remaining on its current trail
+        based on the pheromone level at its current node and world parameters.
+        Follows the paper's fidelity probability function.
+        
+        :param self: The Ant instance
+        :param params: The world parameters
+        :type params: WorldParams
+        :return: The probability of staying on the trail
+        :rtype: float
+        """
+        current_pheromone = self.current_node.pheromone_level
+        if current_pheromone >= params.C_s:
+            return params.phi_low + params.delta_phi
+        else:
+            return params.phi_low + (params.delta_phi * (current_pheromone / params.C_s))
     
     def move(self, params: WorldParams, lattice: Lattice):
         """
@@ -217,13 +289,35 @@ class Ant:
         :param lattice: The lattice structure
         :type lattice: Lattice
         """
-        # TODO
-        pass
+        # steps:
+        # 1. deposit pheromone at current node
+        # 2. if following or on node with nonzero pheromone, run fidelity check
+        # 3. if lost, use pick_lost alg. if following and one option, go that way, else use pick_fork alg.
 
-    def pick_fork(self, params: WorldParams, options: dict[LatticeDir, LatticeNode]) -> LatticeDir:
+        self.current_node.add_pheromone(params.tau)
+
+        if self.status == AntStatus.FOLLOWING or self.current_node.pheromone_level > 0:
+            fidelity_prob = self.get_fidelity_probability(params)
+            if random.random() < fidelity_prob:
+                self.status = AntStatus.FOLLOWING
+            else:
+                self.status = AntStatus.LOST
+        
+        neighbors = lattice.get_neighbors(self.current_node)
+        direction_choice: LatticeDir
+        if self.status == AntStatus.LOST:
+            direction_choice = self.pick_lost(params, neighbors)
+        else: # FOLLOWING
+            direction_choice = self.pick_following(params, neighbors)
+        
+        # move!
+        self.current_node = neighbors[direction_choice]
+        self.velocity = direction_choice
+
+    def pick_following(self, params: WorldParams, neighbors: dict[LatticeDir, LatticeNode]) -> LatticeDir:
         """
         Given a set of possible directions to move, pick one according to
-        the Fork Algorithm and the world parameters.
+        Fork Algorithm 1 and the world parameters.
         
         :param self: The Ant instance
         :param params: The world parameters
@@ -233,10 +327,32 @@ class Ant:
         :return: The chosen direction to move
         :rtype: LatticeDir
         """
-        # TODO
-        pass
+        nearby_trails = {dir: node for dir, node in neighbors.items() if node.pheromone_level > 0 and dir != LatticeDir.opposite(self.velocity)}
+        
+        if len(nearby_trails) == 0:
+            # no trails nearby, this shouldn't happen
+            raise RuntimeError("Ant in FOLLOWING status found no nearby trails.")
 
-    def pick_lost(self, params: WorldParams, options: dict[LatticeDir, LatticeNode]) -> LatticeDir:
+        # if there's a trail in the direction we're going, follow it
+        if len(nearby_trails) == 1:
+            return list(nearby_trails.keys())[0]
+        
+        # This is Fork Algorithm 1. Fork Algorithm 2 is not yet implemented.
+        if self.velocity in nearby_trails:
+            # go forward if possible
+            return self.velocity
+        # FIXME: this doesn't handle antennae saturation properly
+        first_val = next(iter(nearby_trails.values())).pheromone_level
+        all_same = all(node.pheromone_level == first_val for node in nearby_trails.values())
+        if all_same:
+            # all options have the same pheromone level, act like we're lost
+            return self.pick_lost(params, nearby_trails)
+        else:
+            # pick the direction with the highest pheromone level
+            best_dir = max(nearby_trails.items(), key=lambda item: item[1].pheromone_level)[0]
+            return best_dir
+
+    def pick_lost(self, params: WorldParams, neighbors: dict[LatticeDir, LatticeNode]) -> LatticeDir:
         """
         Given a set of possible directions to move, pick one according to
         the Lost Algorithm and the world parameters.
@@ -249,9 +365,25 @@ class Ant:
         :return: The chosen direction to move
         :rtype: LatticeDir
         """
-        # TODO
-        pass
-
+        # again, this won't generalize well to non-square lattices
+        # pick a random direction to go, weighted by the turning kernel
+        assert len(neighbors) == 8, "Lost algorithm expects all directions to be available."
+        direction_ladder: dict[LatticeDir, float] = {}
+        total_weight = 0.0
+        for increment, weight in params.B.items():
+            dir_angle = (self.velocity.value + increment) % 360
+            for direction in LatticeDir:
+                if direction.value == dir_angle:
+                    total_weight += weight
+                    direction_ladder[direction] = total_weight
+                    break
+        # pick a random number and use it to select a direction
+        rand_val = random.random()
+        for direction, cumulative_weight in direction_ladder.items():
+            if rand_val <= cumulative_weight:
+                return direction
+        # this should be unreachable
+        raise RuntimeError("Failed to pick a direction in pick_lost.")
 
 class AntWorld:
     """
@@ -291,5 +423,16 @@ class AntWorld:
         
         :param self: The AntWorld instance
         """
-        # TODO
-        pass
+        # in 1 step:
+        # release an ant from the nest
+        # move all ants
+        # evaporate pheromone levels
+        self.timestep += 1
+
+        self.ants.append(Ant(self.nest_node))
+        
+        # note: this is not time-synchronous; ants move in sequence
+        for ant in self.ants:
+            ant.move(self.params, self.lattice)
+        
+        self.lattice.evaporate_all_pheromones(self.params)
