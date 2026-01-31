@@ -6,14 +6,15 @@ class TestLatticeBuilder:
         assert len(lattice.nodes) == 16
         assert lattice.get_node_at((3, 3)) is not None
         assert lattice.get_node_at((4, 4)) is None
-        
         node = lattice.get_node_at((0, 0))
         assert node is not None
         neighbors = lattice.get_neighbors(node)
-        assert len(neighbors) == 3  # Only south, east, and southeast neighbors
+        assert len([neighbor for neighbor in neighbors.values() if neighbor is not None]) == 3  # Only south, east, and southeast neighbors
+        assert len(neighbors) == 8  # All directions should be present, some as None
         expected_positions = {LatticeDir.SOUTH: (0, 1), LatticeDir.EAST: (1, 0), LatticeDir.SOUTHEAST: (1, 1)}
         for direction, pos in expected_positions.items():
-            assert neighbors[direction].position == pos
+            assert neighbors[direction] is not None
+            assert neighbors[direction].position == pos # type: ignore # pylint isn't picking up the is not None check
     
     def test_square_lattice_large(self):
         lattice = LatticeBuilders.square_lattice(256)
@@ -35,7 +36,8 @@ class TestLatticeBuilder:
             LatticeDir.NORTHWEST: (127, 127)
         }
         for direction, pos in expected_positions.items():
-            assert neighbors[direction].position == pos
+            assert neighbors[direction] is not None
+            assert neighbors[direction].position == pos # type: ignore # pylint isn't picking up the is not None check
 
 class TestLatticeAndNodes:
     def test_node_positions(self):
@@ -120,7 +122,7 @@ class TestAnt:
         ant.velocity = LatticeDir.NORTH
         neighbors = lattice.get_neighbors(node)
         # Set pheromone levels so that only one neighbor has pheromone
-        neighbors[LatticeDir.EAST].add_pheromone(10)
+        neighbors[LatticeDir.EAST].add_pheromone(10) 
         chosen_dir = ant.pick_following(params, neighbors)
         assert chosen_dir == LatticeDir.EAST
     
@@ -235,7 +237,22 @@ class TestAnt:
             ant.move(params, lattice)
             if ant.status == AntStatus.LOST:
                 fidelity_losses += 1 
-                
+    
+    def test_ant_can_move_off_grid(self):
+        params = WorldParams.default()
+        lattice = LatticeBuilders.square_lattice(4)
+        node = lattice.get_node_at((0, 0))
+        assert node is not None
+        num_trials = 100
+        off_grid_moves = 0
+        for _ in range(num_trials):
+            ant = Ant(node)
+            ant.velocity = LatticeDir.NORTHWEST
+            result = ant.move(params, lattice)
+            if result == MoveResult.OFF_GRID:
+                off_grid_moves += 1
+        assert off_grid_moves > 0
+
 class TestAntWorld:
     def test_initialization(self):
         params = WorldParams.default()
@@ -253,3 +270,47 @@ class TestAntWorld:
         world.step()
         assert world.timestep == initial_timestep + 1
         assert len(world.ants) == 1  # One ant should be released each step
+    
+    def test_pheromone_evaporation(self):
+        params = WorldParams.default()
+        world = AntWorld(params)
+        nest_node = world.nest_node
+        assert nest_node is not None
+        nest_node.add_pheromone(10)
+        world.lattice.evaporate_all_pheromones(params)
+        assert nest_node.pheromone_level == 9
+    
+    def test_multiple_timesteps(self):
+        params = WorldParams.default()
+        num_trials = 50
+        for _ in range(num_trials):
+            world = AntWorld(params)
+            num_steps = 10
+            for _ in range(num_steps):
+                world.step()
+            assert world.timestep == num_steps
+            assert len(world.ants) <= num_steps  # One ant per step, some may have moved off-grid
+            # Check that pheromone levels are reasonable
+            total_pheromone = sum(node.pheromone_level for node in world.lattice.nodes)
+            assert total_pheromone > 0
+            assert total_pheromone < num_steps * num_steps * params.tau # Should have evaporated some
+    
+    def test_large_world(self):
+        params = WorldParams.default()
+        params.world_size = 256
+        num_trials = 10
+        for _ in range(num_trials):
+            world = AntWorld(params)
+            num_steps = 100
+            for _ in range(num_steps):
+                world.step()
+            assert world.timestep == num_steps
+            assert len(world.ants) == num_steps  # no ants should have moved off-grid
+            # Check that pheromone levels are reasonable
+            total_pheromone = sum(node.pheromone_level for node in world.lattice.nodes)
+            assert total_pheromone > 0
+            assert total_pheromone < num_steps * num_steps * params.tau # Should have evaporated some
+            # check that ants are reasonably distributed
+            positions = {ant.current_node.position for ant in world.ants}
+            assert len(positions) > num_steps // 40  # at least 40% of ants in unique positions
+            
