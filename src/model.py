@@ -95,8 +95,12 @@ class WorldParams:
         assert 0.0 <= delta_phi <= 1.0, "delta_phi must be between 0 and 1."
     
     @classmethod
-    def default(cls) -> 'WorldParams':
+    def default_small(cls) -> 'WorldParams':
         return cls(evaporation_rate=1, tau=4, B={0: 0.44, 45: 0.1, -45: 0.1, 90: 0.08, -90: 0.08, 135: 0.05, -135: 0.05, 180: 0.1}, phi_low=0.1, C_s=16, delta_phi=0.8, world_size=4)
+    
+    @classmethod
+    def default_large(cls) -> 'WorldParams':
+        return cls(evaporation_rate=1, tau=8, B={0: 0.5, 45: 0.15, -45: 0.15, 90: 0.05, -90: 0.05, 135: 0.03, -135: 0.03, 180: 0.04}, phi_low=251/256, C_s=16, delta_phi=0, world_size=256)
 
 type LatticePos = tuple[int, int]
 class LatticeDir(Enum):

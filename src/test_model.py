@@ -76,7 +76,7 @@ class TestLatticeAndNodes:
         assert node1 is not None and node2 is not None
         node1.add_pheromone(10)
         node2.add_pheromone(20)
-        lattice.evaporate_all_pheromones(params=WorldParams.default())
+        lattice.evaporate_all_pheromones(params=WorldParams.default_small())
         assert node1.pheromone_level == 9
         assert node2.pheromone_level == 19
     
@@ -99,7 +99,7 @@ class TestAnt:
         assert ant.current_node == node
     
     def test_fidelity_probability(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         lattice = LatticeBuilders.square_lattice(params.world_size)
         node = lattice.get_node_at((1, 1))
         assert node is not None
@@ -114,7 +114,7 @@ class TestAnt:
         assert prob == params.phi_low + params.delta_phi
     
     def test_following_one_option(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         lattice = LatticeBuilders.square_lattice(params.world_size)
         node = lattice.get_node_at((1, 1))
         assert node is not None
@@ -127,7 +127,7 @@ class TestAnt:
         assert chosen_dir == LatticeDir.EAST
     
     def test_following_options_saturated(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         lattice = LatticeBuilders.square_lattice(params.world_size)
         node = lattice.get_node_at((1, 1))
         assert node is not None
@@ -148,7 +148,7 @@ class TestAnt:
         assert all(count > 0 for count in direction_counts.values())
     
     def test_following_options_same_level(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         lattice = LatticeBuilders.square_lattice(params.world_size)
         node = lattice.get_node_at((1, 1))
         assert node is not None
@@ -169,7 +169,7 @@ class TestAnt:
         assert all(count > 0 for count in direction_counts.values())
     
     def test_following_forward_fork(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         lattice = LatticeBuilders.square_lattice(params.world_size)
         node = lattice.get_node_at((1, 1))
         assert node is not None
@@ -185,7 +185,7 @@ class TestAnt:
         assert chosen_dir == LatticeDir.NORTH  # should prefer going forward
     
     def test_following_options_fork(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         lattice = LatticeBuilders.square_lattice(params.world_size)
         node = lattice.get_node_at((1, 1))
         assert node is not None
@@ -200,7 +200,7 @@ class TestAnt:
         assert chosen_dir == LatticeDir.WEST  # we can't turn around, so SOUTH is not an option
     
     def test_lost_algorithm(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         lattice = LatticeBuilders.square_lattice(params.world_size)
         node = lattice.get_node_at((1, 1))
         assert node is not None
@@ -220,7 +220,7 @@ class TestAnt:
             assert abs(expected_prob - actual_prob) < 0.05  # Allow 5% error margin
     
     def test_move_loses_fidelity_sometimes(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         trials = 100
         fidelity_losses = 0
         for _ in range(trials):
@@ -239,7 +239,7 @@ class TestAnt:
                 fidelity_losses += 1 
     
     def test_ant_can_move_off_grid(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         lattice = LatticeBuilders.square_lattice(4)
         node = lattice.get_node_at((0, 0))
         assert node is not None
@@ -255,7 +255,7 @@ class TestAnt:
 
 class TestAntWorld:
     def test_initialization(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         world = AntWorld(params)
         assert world.params == params
         assert len(world.lattice.nodes) == 16
@@ -264,7 +264,7 @@ class TestAntWorld:
         assert world.timestep == 0
     
     def test_timestep_progression(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         world = AntWorld(params)
         initial_timestep = world.timestep
         world.step()
@@ -272,7 +272,7 @@ class TestAntWorld:
         assert len(world.ants) == 1  # One ant should be released each step
     
     def test_pheromone_evaporation(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         world = AntWorld(params)
         nest_node = world.nest_node
         assert nest_node is not None
@@ -281,7 +281,7 @@ class TestAntWorld:
         assert nest_node.pheromone_level == 9
     
     def test_multiple_timesteps(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         num_trials = 50
         for _ in range(num_trials):
             world = AntWorld(params)
@@ -296,7 +296,7 @@ class TestAntWorld:
             assert total_pheromone < num_steps * num_steps * params.tau # Should have evaporated some
     
     def test_large_world(self):
-        params = WorldParams.default()
+        params = WorldParams.default_small()
         params.world_size = 256
         num_trials = 10
         for _ in range(num_trials):
