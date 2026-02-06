@@ -100,7 +100,7 @@ class WorldParams:
     
     @classmethod
     def default_large(cls) -> 'WorldParams':
-        return cls(evaporation_rate=1, tau=8, B={0: 0.5, 45: 0.15, -45: 0.15, 90: 0.05, -90: 0.05, 135: 0.03, -135: 0.03, 180: 0.04}, phi_low=251/256, C_s=16, delta_phi=0, world_size=256)
+        return cls(evaporation_rate=1, tau=8, B={0: 0.581, 45: 0.36/2, -45: 0.36/2, 90: 0.047/2, -90: 0.047/2, 135: 0.004, -135: 0.004, 180: 0.004}, phi_low=251/256, C_s=16, delta_phi=0, world_size=256)
 
 type LatticePos = tuple[int, int]
 class LatticeDir(Enum):
@@ -303,6 +303,7 @@ class Ant:
         # 3. deposit pheromone at now-current node
 
         if self.status == AntStatus.FOLLOWING or self.current_node.pheromone_level > 0:
+            # FIXME: ants that following but not on pheromone can't switch to lost
             fidelity_prob = self.get_fidelity_probability(params)
             if random.random() < fidelity_prob:
                 self.status = AntStatus.FOLLOWING
@@ -340,8 +341,7 @@ class Ant:
         :return: The chosen direction to move
         :rtype: LatticeDir
         """
-        nearby_trails = {dir: node for dir, node in neighbors.items() if node is not None and node.pheromone_level > 0 and dir != LatticeDir.opposite(self.velocity)}
-        
+        nearby_trails = {dir: node for dir, node in neighbors.items() if node is not None and node.pheromone_level > 0 and (abs((dir.value - self.velocity.value) % 360) <= 45 or abs((dir.value - self.velocity.value) % 360) >= 315)}
         if len(nearby_trails) == 0:
             # we were following a trail, but now it ended.
             # act like we're lost
@@ -382,6 +382,7 @@ class Ant:
         """
         # again, this won't generalize well to non-square lattices
         # pick a random direction to go, weighted by the turning kernel
+        # FIXME: use random.choice weighted instead of all this
         assert len(neighbors) == 8, "Lost algorithm expects all directions to be available."
         direction_ladder: dict[LatticeDir, float] = {}
         total_weight = 0.0
