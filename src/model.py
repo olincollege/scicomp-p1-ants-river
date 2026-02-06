@@ -21,7 +21,9 @@ class LatticeBuilders:
         :return: The generated square lattice
         :rtype: Lattice
         """
+        # generate a square grid of nodes
         nodes = {(x, y): LatticeNode((x, y)) for x in range(world_size) for y in range(world_size)}
+        # set neighbors for each node
         for (x, y), node in nodes.items():
             directions = {
                 LatticeDir.NORTH: (x, y - 1),
@@ -37,6 +39,7 @@ class LatticeBuilders:
                 if 0 <= nx < world_size and 0 <= ny < world_size:
                     neighbor = nodes[(nx, ny)]
                     node.set_neighbor(direction, neighbor)
+        # place nodes in Lattice
         lattice = Lattice(list(nodes.values()))
         return lattice                    
 
@@ -96,10 +99,12 @@ class WorldParams:
     
     @classmethod
     def default_small(cls) -> 'WorldParams':
+        # largely used for testing, not intended to be a realistic simulation
         return cls(evaporation_rate=1, tau=4, B={0: 0.44, 45: 0.1, -45: 0.1, 90: 0.08, -90: 0.08, 135: 0.05, -135: 0.05, 180: 0.1}, phi_low=0.1, C_s=16, delta_phi=0.8, world_size=4)
     
     @classmethod
     def default_large(cls) -> 'WorldParams':
+        # parameters from the original paper
         return cls(evaporation_rate=1, tau=8, B={0: 0.581, 45: 0.36/2, -45: 0.36/2, 90: 0.047/2, -90: 0.047/2, 135: 0.004, -135: 0.004, 180: 0.004}, phi_low=251/256, C_s=16, delta_phi=0, world_size=256)
 
 type LatticePos = tuple[int, int]
@@ -132,6 +137,21 @@ class LatticeDir(Enum):
             if dir.value == opposite_angle:
                 return dir
         raise ValueError("Invalid direction provided.")
+    
+    def relative(self, other: 'LatticeDir') -> int:
+        """
+        Get the relative angle from this direction to another direction.
+        
+        :param self: The original direction
+        :param other: The target direction
+        :type other: LatticeDir
+        :return: The relative angle from self to other, between -179 and 180
+        :rtype: int
+        """
+        relative_angle = (other.value - self.value) % 360
+        if relative_angle > 180:
+            relative_angle -= 360
+        return relative_angle
 
 class LatticeNode:
     """
@@ -302,13 +322,16 @@ class Ant:
         # 2. if lost, use pick_lost alg. if following and one option, go that way, else use pick_fork alg.
         # 3. deposit pheromone at now-current node
 
-        if self.status == AntStatus.FOLLOWING or self.current_node.pheromone_level > 0:
-            # FIXME: ants that following but not on pheromone can't switch to lost
+        if self.current_node.pheromone_level > 0:
+            # we are on a trail, so run the fidelity check to see if we follow it or not
             fidelity_prob = self.get_fidelity_probability(params)
             if random.random() < fidelity_prob:
                 self.status = AntStatus.FOLLOWING
             else:
                 self.status = AntStatus.LOST
+        else:
+            # if we are not on a trail, we must be lost
+            self.status = AntStatus.LOST
         
         
         neighbors = self.current_node.neighbors
@@ -341,7 +364,9 @@ class Ant:
         :return: The chosen direction to move
         :rtype: LatticeDir
         """
-        nearby_trails = {dir: node for dir, node in neighbors.items() if node is not None and node.pheromone_level > 0 and (abs((dir.value - self.velocity.value) % 360) <= 45 or abs((dir.value - self.velocity.value) % 360) >= 315)}
+        # filter the possible directions we could go to be on the lattice, have some amount of pheromone, and be in front of us (within 45 degrees either way)
+        nearby_trails = {dir: node for dir, node in neighbors.items() if node is not None and node.pheromone_level > 0 and abs(dir.relative(self.velocity)) <= 45}
+        
         if len(nearby_trails) == 0:
             # we were following a trail, but now it ended.
             # act like we're lost
@@ -351,7 +376,7 @@ class Ant:
         if len(nearby_trails) == 1:
             return list(nearby_trails.keys())[0]
         
-        # This is Fork Algorithm 1. Fork Algorithm 2 is not yet implemented.
+        # This is Fork Algorithm 1. Fork Algorithm 2 is not implemented.
         if self.velocity in nearby_trails:
             # go forward if possible
             return self.velocity
@@ -384,22 +409,27 @@ class Ant:
         # pick a random direction to go, weighted by the turning kernel
         # FIXME: use random.choice weighted instead of all this
         assert len(neighbors) == 8, "Lost algorithm expects all directions to be available."
-        direction_ladder: dict[LatticeDir, float] = {}
-        total_weight = 0.0
-        for increment, weight in params.B.items():
-            dir_angle = (self.velocity.value + increment) % 360
-            for direction in LatticeDir:
-                if direction.value == dir_angle:
-                    total_weight += weight
-                    direction_ladder[direction] = total_weight
-                    break
-        # pick a random number and use it to select a direction
-        rand_val = random.random()
-        for direction, cumulative_weight in direction_ladder.items():
-            if rand_val <= cumulative_weight:
-                return direction
-        # this should be unreachable
-        raise RuntimeError("Failed to pick a direction in pick_lost.")
+
+        # grab the weights for each direction from the turning kernel, using the relative angle from our current velocity
+        weights = [params.B[self.velocity.relative(dir)] for dir in neighbors.keys()]
+        # get a weighted random choice from the directions
+        return random.choices(population=list(neighbors.keys()), weights=weights)[0]
+        # direction_ladder: dict[LatticeDir, float] = {}
+        # total_weight = 0.0
+        # for increment, weight in params.B.items():
+        #     dir_angle = (self.velocity.value + increment) % 360
+        #     for direction in LatticeDir:
+        #         if direction.value == dir_angle:
+        #             total_weight += weight
+        #             direction_ladder[direction] = total_weight
+        #             break
+        # # pick a random number and use it to select a direction
+        # rand_val = random.random()
+        # for direction, cumulative_weight in direction_ladder.items():
+        #     if rand_val <= cumulative_weight:
+        #         return direction
+        # # this should be unreachable
+        # raise RuntimeError("Failed to pick a direction in pick_lost.")
 
 class AntWorld:
     """
@@ -454,3 +484,17 @@ class AntWorld:
                 self.ants.remove(ant)
         
         self.lattice.evaporate_all_pheromones(self.params)
+    
+    def reset(self):
+        """
+        Reset the simulation to the initial state.
+        
+        :param self: The AntWorld instance
+        """
+        self.lattice = self.params.generate_lattice(self.params.world_size)
+        nest_node = self.lattice.get_node_at((self.params.world_size // 2, self.params.world_size // 2)) # NOTE: this does not generalize to non-square lattices
+        if nest_node is None:
+            raise ValueError("Nest node could not be found in the lattice.")
+        self.nest_node = nest_node
+        self.ants = []
+        self.timestep = 0

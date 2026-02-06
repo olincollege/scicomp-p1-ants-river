@@ -89,6 +89,15 @@ class TestLatticeAndNodes:
         assert LatticeDir.opposite(LatticeDir.SOUTHWEST) == LatticeDir.NORTHEAST
         assert LatticeDir.opposite(LatticeDir.WEST) == LatticeDir.EAST
         assert LatticeDir.opposite(LatticeDir.NORTHWEST) == LatticeDir.SOUTHEAST
+    
+    def test_relative(self):
+        assert LatticeDir.NORTH.relative(LatticeDir.NORTH) == 0
+        assert LatticeDir.NORTHEAST.relative(LatticeDir.NORTH) == -45
+        assert LatticeDir.EAST.relative(LatticeDir.NORTH) == -90
+        assert LatticeDir.SOUTHEAST.relative(LatticeDir.SOUTH) == 45
+        assert LatticeDir.SOUTH.relative(LatticeDir.NORTH) == 180
+        assert LatticeDir.SOUTHWEST.relative(LatticeDir.WEST) == 45
+
 
 class TestAnt:
     def test_initialization(self):
@@ -315,4 +324,16 @@ class TestAntWorld:
             # check that ants are reasonably distributed
             positions = {ant.current_node.position for ant in world.ants}
             assert len(positions) > num_steps // 40  # at least 40% of ants in unique positions
-            
+        
+    def test_world_reset(self):
+        params = WorldParams.default_small()
+        world = AntWorld(params)
+        for _ in range(10):
+            world.step()
+        assert world.timestep == 10
+        assert len(world.ants) > 2 
+        assert any(node.pheromone_level > 0 for node in world.lattice.nodes)
+        world.reset()
+        assert world.timestep == 0
+        assert len(world.ants) == 0
+        assert all(node.pheromone_level == 0 for node in world.lattice.nodes)
