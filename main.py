@@ -1,6 +1,4 @@
-def main():
-    print("Hello from scicomp-p1-ants!")
-
+from src.interface_pygame import main
 
 if __name__ == "__main__":
     main()

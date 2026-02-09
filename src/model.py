@@ -407,30 +407,13 @@ class Ant:
         """
         # again, this won't generalize well to non-square lattices
         # pick a random direction to go, weighted by the turning kernel
-        # FIXME: use random.choice weighted instead of all this
         assert len(neighbors) == 8, "Lost algorithm expects all directions to be available."
 
         # grab the weights for each direction from the turning kernel, using the relative angle from our current velocity
         weights = [params.B[self.velocity.relative(dir)] for dir in neighbors.keys()]
         # get a weighted random choice from the directions
         return random.choices(population=list(neighbors.keys()), weights=weights)[0]
-        # direction_ladder: dict[LatticeDir, float] = {}
-        # total_weight = 0.0
-        # for increment, weight in params.B.items():
-        #     dir_angle = (self.velocity.value + increment) % 360
-        #     for direction in LatticeDir:
-        #         if direction.value == dir_angle:
-        #             total_weight += weight
-        #             direction_ladder[direction] = total_weight
-        #             break
-        # # pick a random number and use it to select a direction
-        # rand_val = random.random()
-        # for direction, cumulative_weight in direction_ladder.items():
-        #     if rand_val <= cumulative_weight:
-        #         return direction
-        # # this should be unreachable
-        # raise RuntimeError("Failed to pick a direction in pick_lost.")
-
+       
 class AntWorld:
     """
     The ant simulation world.

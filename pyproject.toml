@@ -1,7 +1,7 @@
 [project]
 name = "scicomp-p1-ants"
 version = "0.1.0"
-description = "Add your description here"
+description = "Ant simulation project for Scientific Computing SP26, seeking to replicate Watmough and Edelstein-Keshet, 1995."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
