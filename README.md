@@ -26,6 +26,13 @@ C_s|Controls at what level of pheromone the ant's antennae saturate
 delta_phi|Controls if ants are more likely to stay on stronger trails
 B.45-B.180|Controls how likely the ants are to turn various amounts
 
+## Comparison to Original
+Paper's figure 3(b) at t=1500|This model with same parameters
+---|---
+![A screenshot of Figure 3(b) from Watmough and Edelstein-Keshet, 1995.](/docs-pics/their-fig-3b.png)|![A screenshot from this software, run with the same parameters as the paper](/docs-pics/my-fig-3b.png)
+
+Qualitatively, this model has trails that are more numerous and winding than the original paper. They reach less far from the center, but are denser near the center. Quantitatively, the ant population is much higher for this model than in the paper (1033 vs 485). This pattern is likely due to the paper's straighter paths leading more ants off the borders of the lattice. This points to a possible difference in the way the turning kernel is implemented, such that the paper's ants are less likely to make turns. Interestingly, the paper notes a followers/lost ant ratio (F/L ratio) of only 4.4, while this model's is closer to 40. In other words, in this model, there are fewer ants leading trails, despite there being a greater number of trails created. This could be a result of a possible difference in the way fidelity is implemented, with this paper's ants being less likely to follow trails for an extended length of time.
+
 ## Software Architecture
 The core model is implemented in `src/model.py`. The model is implemented in a fairly object-oriented way, with separate `Ant`, `Lattice`, `AntWorld`, etc. This makes it simpler to reason about where behavior is implemented as well as allowing easier type-checking for correctness. It was written to allow some extent of flexibility, e.g. very few numbers are hardcoded, even implied ones like pheromone evaporation rates. However, some assumptions made it into the final model, like the ant algorithms assuming each node has 8 neighbors.
 
