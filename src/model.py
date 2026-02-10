@@ -1,6 +1,6 @@
 """
 model.py
-This module defines the core ant model, including data structures and behavoir.
+This module defines the core ant model, including data structures and behavior.
 It doesn't include any interface or input/output code.
 """
 from typing import Callable

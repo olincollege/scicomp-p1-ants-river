@@ -48,7 +48,7 @@ class TestLatticeAndNodes:
                 assert node is not None
                 assert node.position == (x, y)
     def test_node_neighbors(self):
-        # also mostly covered by LatticeBuiler above
+        # also mostly covered by LatticeBuilder above
         lattice = LatticeBuilders.square_lattice(3)
         center_node = lattice.get_node_at((1, 1))
         assert center_node is not None
@@ -147,13 +147,12 @@ class TestAnt:
         neighbors[LatticeDir.NORTHWEST].add_pheromone(params.C_s + 10)
         neighbors[LatticeDir.NORTHEAST].add_pheromone(params.C_s + 20)
         # Since both are saturated, should act like lost
-        num_trials = 100
+        num_trials = 400
         # should see all directions get picked
         direction_counts = {dir: 0 for dir in LatticeDir}
         for _ in range(num_trials):
             dir = ant.pick_following(params, neighbors)
             direction_counts[dir] += 1
-        
         assert all(count > 0 for count in direction_counts.values())
     
     def test_following_options_same_level(self):
