@@ -161,24 +161,25 @@ class WorldControls:
         self.labels.append(self.fl_label)
 
         # Parameter values and controls. tau, phi_low, C_s, delta_phi, and turning kernel.
-        # There's an argument for making this less repetitve but :shrug:
+        # the /256 is to make the param vals match with those in the paper
         param_y = 300
         self.tau_pc = ParamController(self.screen, self.world, xs_8ths[0], param_y, 'tau', lambda val: setattr(self.world.params, 'tau', val), 1, self.world.params.tau)
         self.param_controllers.append(self.tau_pc)
-        self.phi_low_pc = ParamController(self.screen, self.world, xs_8ths[2], param_y, 'phi_low', lambda val: setattr(self.world.params, 'phi_low', val), 0.01, self.world.params.phi_low)
+        self.phi_low_pc = ParamController(self.screen, self.world, xs_8ths[2], param_y, 'phi_low', lambda val: setattr(self.world.params, 'phi_low', val/256), 1, self.world.params.phi_low*256)
         self.param_controllers.append(self.phi_low_pc)
         self.cs_pc = ParamController(self.screen, self.world, xs_8ths[4], param_y, 'C_s', lambda val: setattr(self.world.params, 'C_s', val), 1, self.world.params.C_s)
         self.param_controllers.append(self.cs_pc)
-        self.dphi_pc = ParamController(self.screen, self.world, xs_8ths[6], param_y, 'delta_phi', lambda val: setattr(self.world.params, 'delta_phi', val), 0.01, self.world.params.delta_phi)
+        self.dphi_pc = ParamController(self.screen, self.world, xs_8ths[6], param_y, 'delta_phi', lambda val: setattr(self.world.params, 'delta_phi', val/256), 1, self.world.params.delta_phi*256)
         self.param_controllers.append(self.dphi_pc)
 
         # Turning kernel controls
+        # all but 180 are *2 b/c the non-180 probs are split across left and right turns
         tk_param_y = param_y + 100
-        self.tk_45_pc = ParamController(self.screen, self.world, xs_8ths[0], tk_param_y, 'B.45', lambda val: self.set_B(45, val), 0.01, self.world.params.B[45], figs=3)
+        self.tk_45_pc = ParamController(self.screen, self.world, xs_8ths[0], tk_param_y, 'B.45', lambda val: self.set_B(45, val/2), 0.01, self.world.params.B[45]*2, figs=3)
         self.param_controllers.append(self.tk_45_pc)
-        self.tk_90_pc = ParamController(self.screen, self.world, xs_8ths[2], tk_param_y, 'B.90', lambda val: self.set_B(90, val), 0.001, self.world.params.B[90], figs=3)
+        self.tk_90_pc = ParamController(self.screen, self.world, xs_8ths[2], tk_param_y, 'B.90', lambda val: self.set_B(90, val/2), 0.001, self.world.params.B[90]*2, figs=3)
         self.param_controllers.append(self.tk_90_pc)
-        self.tk_135_pc = ParamController(self.screen, self.world, xs_8ths[4], tk_param_y, 'B.135', lambda val: self.set_B(135, val), 0.001, self.world.params.B[135], figs=3)
+        self.tk_135_pc = ParamController(self.screen, self.world, xs_8ths[4], tk_param_y, 'B.135', lambda val: self.set_B(135, val/2), 0.001, self.world.params.B[135]*2, figs=3)
         self.param_controllers.append(self.tk_135_pc)
         self.tk_180_pc = ParamController(self.screen, self.world, xs_8ths[6], tk_param_y, 'B.180', lambda val: self.set_B(180, val), 0.001, self.world.params.B[180], figs=3)
         self.param_controllers.append(self.tk_180_pc)
