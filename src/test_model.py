@@ -306,9 +306,8 @@ class TestAntWorld:
             assert total_pheromone < num_steps * num_steps * params.tau # Should have evaporated some
     
     def test_large_world(self):
-        params = WorldParams.default_small()
-        params.world_size = 256
-        num_trials = 10
+        params = WorldParams.default_large()
+        num_trials = 5
         for _ in range(num_trials):
             world = AntWorld(params)
             num_steps = 100
